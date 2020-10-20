@@ -15,7 +15,7 @@ def read(filename):
 
 setup(
     name="hamsclient",
-    version="0.1",
+    version="0.1.1",
     url="https://github.com/websylv/meteoswiss",
     license='MIT',
 
@@ -31,6 +31,7 @@ setup(
         "requests>=2.22.0",
         "pandas>=0.25.3",
         "beautifulsoup4>=4.8.2"
+        "geopy>=2.0.0"
     ],
 
     classifiers=[

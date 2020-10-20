@@ -15,6 +15,7 @@ MS_SEARCH_URL = 'https://www.meteosuisse.admin.ch/home/actualite/infos.html?ort=
 CURRENT_CONDITION_URL= 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/VQHA80.csv'
 STATION_URL = "https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/info/VQHA80_fr.txt"
 MS_24FORECAST_URL = "https://www.meteosuisse.admin.ch/product/output/forecast-chart/{}/fr/{}00.json"
+MS_24FORECAST_REF = "https://www.meteosuisse.admin.ch//content/meteoswiss/fr/home.mobile.meteo-products--overview.html"
 
 class meteoSwissClient():
     def __init__(self,displayName=None,postcode=None,station=None):
@@ -46,12 +47,15 @@ class meteoSwissClient():
         version = jsonUrl.split('/')[5]
         forecastUrl = MS_24FORECAST_URL.format(version,self._postCode)
         _LOGGER.debug("Data URL : %s"%forecastUrl)
-        s.headers.update({'referer': searchUrl})
+        s.headers.update({'referer': MS_24FORECAST_REF,"x-requested-with": "XMLHttpRequest","Accept": "application/json, text/javascript, */*; q=0.01","dnt": "1"})
         jsonData = s.get(forecastUrl,timeout=10)
         jsonData.encoding = "utf8"
         jsonDataTxt = jsonData.text
 
         jsonObj = json.loads(jsonDataTxt)
+
+        self._forecast24 =  jsonObj
+        _LOGGER.debug("End of 24 forecast udate")
 
     def get_forecast(self):
         _LOGGER.debug("Start update forecast data")
@@ -104,23 +108,23 @@ class meteoSwissClient():
                 if(re.match(r"Stations\sCoordinates", line)):
                     cordinatesFound = True
             else:
-                if(re.match(r"^[A-Z]{3}\s+",line)):
-                    
-                    lineParts = None
-                    lineParts = re.split(r'\s\s+',line)
-                
-                    
-                    ## Saving station data to a dictionnary
-                    stationData = {}
-                    stationData["code"] = lineParts[0]
-                    stationData["name"] = lineParts[1]
-                    stationData["lat"] = lineParts[2].split("/")[1]
-                    stationData["lon"] = lineParts[2].split("/")[0]
-                    stationData["coordianteKM"] = lineParts[3]
-                    stationData["altitude"] = lineParts[4].strip()
-                    
-                    stationList[lineParts[0]] = stationData
-                    
+                try:
+                    if(re.match(r"^[A-Z]{3}\s+",line)):
+                        lineParts = None
+                        lineParts = re.split(r'\s\s+',line)
+                        
+                        ## Saving station data to a dictionnary
+                        stationData = {}
+                        stationData["code"] = lineParts[0]
+                        stationData["name"] = lineParts[1]
+                        stationData["lat"] = lineParts[3].split("/")[1]
+                        stationData["lon"] = lineParts[3].split("/")[0]
+                        stationData["coordianteKM"] = lineParts[4]
+                        stationData["altitude"] = lineParts[5].strip()
+                        
+                        stationList[lineParts[0]] = stationData
+                except:
+                    pass    
         return stationList 
 
 
