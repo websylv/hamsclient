@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 MS_BASE_URL = 'https://www.meteosuisse.admin.ch'
 MS_SEARCH_URL = 'https://www.meteosuisse.admin.ch/home/actualite/infos.html?ort={}&pageIndex=0&tab=search_tab'
 CURRENT_CONDITION_URL= 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/VQHA80.csv'
-STATION_URL = "https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/info/VQHA80_fr.txt"
+STATION_URL = "https://data.geo.admin.ch/ch.meteoschweiz.messnetz-automatisch/ch.meteoschweiz.messnetz-automatisch_fr.csv"
 MS_24FORECAST_URL = "https://www.meteosuisse.admin.ch/product/output/forecast-chart/{}/fr/{}00.json"
 MS_24FORECAST_REF = "https://www.meteosuisse.admin.ch//content/meteoswiss/fr/home.mobile.meteo-products--overview.html"
 
@@ -24,9 +24,11 @@ class meteoSwissClient():
         self._station = station
         self._name = displayName
         self._allStations = None
+        self._condition = None
+        self._forecast = None
         _LOGGER.debug("INIT meteoswiss client : name = %s station = %s postcode = %s"%(self._name,self._station,self._postCode))
-        
-    
+
+
     def get_data(self):
         return  {"name": self._name,"forecast": self._forecast, "condition":self._condition}
 
@@ -86,46 +88,29 @@ class meteoSwissClient():
 
     def get_current_condition(self):
         _LOGGER.debug("Update current condition")
-        data = pd.read_csv(CURRENT_CONDITION_URL,sep=';',header=1)
+        data = pd.read_csv(CURRENT_CONDITION_URL,sep=';',header=0)
         _LOGGER.debug("Get current condition for : %s"%self._station)
-        stationData = data.loc[data['stn'].str.contains(self._station)]
+        stationData = data.loc[data['Station/Location'].str.contains(self._station)]
         stationData = stationData.to_dict('records')
         self._condition =  stationData
-    
+
     def update(self):
         self.get_forecast()
         self.get_current_condition()
 
     def __get_all_stations(self):
-        s = requests.Session()
         _LOGGER.debug("Getting all stations from : %s"%(STATION_URL))
-        tmp = s.get(STATION_URL)
-        descriptionLines = tmp.text.split('\n')
-        cordinatesFound = False
+        data = pd.read_csv(STATION_URL, sep=';', header=0, skipfooter=4, encoding='latin1', engine='python')
         stationList = {}
-        for line in descriptionLines:
-            if not cordinatesFound :
-                if(re.match(r"Stations\sCoordinates", line)):
-                    cordinatesFound = True
-            else:
-                try:
-                    if(re.match(r"^[A-Z]{3}\s+",line)):
-                        lineParts = None
-                        lineParts = re.split(r'\s\s+',line)
-                        
-                        ## Saving station data to a dictionnary
-                        stationData = {}
-                        stationData["code"] = lineParts[0]
-                        stationData["name"] = lineParts[1]
-                        stationData["lat"] = lineParts[3].split("/")[1]
-                        stationData["lon"] = lineParts[3].split("/")[0]
-                        stationData["coordianteKM"] = lineParts[4]
-                        stationData["altitude"] = lineParts[5].strip()
-                        
-                        stationList[lineParts[0]] = stationData
-                except:
-                    pass    
-        return stationList 
+        for index, line in data.iterrows():
+            stationData = {}
+            stationData["code"] = line['Abr.']
+            stationData["name"] = line['Station']
+            stationData["lat"] = line['Latitude']
+            stationData["lon"] = line['Longitude']
+            stationData["altitude"] = line["Altitude station m. s. mer"]
+            stationList[stationData["code"]] = stationData
+        return stationList
 
 
     def get_closest_station(self,currentLat,currnetLon):
@@ -134,7 +119,7 @@ class meteoSwissClient():
         hPoint = geopy.Point(currentLat,currnetLon)
         data =[]
         for station in self._allStations:
-            sPoint =geopy.Point(self._allStations[station]["lat"]+"/"+self._allStations[station]["lon"])
+            sPoint =geopy.Point("%s/%s" % (self._allStations[station]["lat"], self._allStations[station]["lon"]))
             distance = geopy.distance.distance(hPoint,sPoint)
             data += (distance.km,station),
             data.sort(key=lambda tup: tup[0])
@@ -147,13 +132,13 @@ class meteoSwissClient():
     def get_station_name(self,stationId):
         if(self._allStations is None):
            self._allStations  = self.__get_all_stations()
-        
+
         try:
             return self._allStations[stationId]['name']
         except:
             _LOGGER.warning("Unable to find station name for : %s"%(stationId))
             return None
-    
+
     def getPostCode(self,lat,lon):
         s = requests.Session()
         lat=str(lat)
@@ -191,7 +176,6 @@ class meteoSwissClient():
 
         for it in lis:
             if( lis[it][0] <= float(val) <= lis[it][1]):
-                return it 
+                return it
         return "N"
 
-                
