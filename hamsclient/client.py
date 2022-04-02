@@ -11,6 +11,7 @@ import re
 _LOGGER = logging.getLogger(__name__)
 
 MS_BASE_URL = 'https://www.meteosuisse.admin.ch'
+JSON_FORECAST_URL = 'https://app-prod-ws.meteoswiss-app.ch/v1/forecast?plz={}00&graph=false&warning=true'
 MS_SEARCH_URL = 'https://www.meteosuisse.admin.ch/home/actualite/infos.html?ort={}&pageIndex=0&tab=search_tab'
 CURRENT_CONDITION_URL= 'https://data.geo.admin.ch/ch.meteoschweiz.messwerte-aktuell/VQHA80.csv'
 STATION_URL = "https://data.geo.admin.ch/ch.meteoschweiz.messnetz-automatisch/ch.meteoschweiz.messnetz-automatisch_fr.csv"
@@ -30,6 +31,8 @@ class meteoSwissClient():
 
 
     def get_data(self):
+        self.get_forecast()
+        self.get_current_condition()
         return  {"name": self._name,"forecast": self._forecast, "condition":self._condition}
 
     def get_24hforecast(self):
@@ -65,20 +68,9 @@ class meteoSwissClient():
         #Forcing headers to avoid 500 error when downloading file
         s.headers.update({"Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                     "Accept-Encoding":"gzip, deflate, sdch",'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36'})
-        searchUrl = MS_SEARCH_URL.format(self._postCode)
-        _LOGGER.debug("Main URL : %s"%searchUrl)
-        tmpSearch = s.get(searchUrl,timeout=10)
 
-        soup = BeautifulSoup(tmpSearch.text,features="html.parser")
-        widgetHtml = soup.find_all("section",{"id": "weather-widget"})
-        jsonUrl = widgetHtml[0].get("data-json-url")
-        jsonDataFile = str.split(jsonUrl,'/')[-1]
-        newJsonDataFile = str(self._postCode)+"00.json"
-        jsonUrl = str(jsonUrl).replace(jsonDataFile,newJsonDataFile)
-        dataUrl = MS_BASE_URL + jsonUrl
-        _LOGGER.debug("Data URL : %s"%dataUrl)
-        s.headers.update({'referer': searchUrl})
-        jsonData = s.get(dataUrl,timeout=10)
+        jsonUrl = JSON_FORECAST_URL.format(self._postCode)
+        jsonData = s.get(jsonUrl,timeout=10)
         jsonDataTxt = jsonData.text
 
         jsonObj = json.loads(jsonDataTxt)
@@ -88,7 +80,9 @@ class meteoSwissClient():
 
     def get_current_condition(self):
         _LOGGER.debug("Update current condition")
+
         data = pd.read_csv(CURRENT_CONDITION_URL,sep=';',header=0)
+
         _LOGGER.debug("Get current condition for : %s"%self._station)
         stationData = data.loc[data['Station/Location'].str.contains(self._station)]
         stationData = stationData.to_dict('records')
@@ -178,4 +172,5 @@ class meteoSwissClient():
             if( lis[it][0] <= float(val) <= lis[it][1]):
                 return it
         return "N"
+
 
