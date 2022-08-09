@@ -102,7 +102,7 @@ class meteoSwissClient():
             stationData["name"] = line['Station']
             stationData["lat"] = line['Latitude']
             stationData["lon"] = line['Longitude']
-            stationData["altitude"] = line["Altitude station m. s. mer"]
+            stationData["altitude"] = line["Altitude station m s. mer"]
             stationList[stationData["code"]] = stationData
         return stationList
 
